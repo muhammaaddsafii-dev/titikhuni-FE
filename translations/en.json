@@ -367,6 +367,8 @@
     "extreme_weather": "Extreme Weather",
     "drought": "Drought",
     "liquefaction": "Liquefaction",
+    "earthquake": "Earthquake",
+    "flashflood": "Flash Flood",
     "properties": "Properties",
     "schools": "Schools",
     "hospitals": "Hospitals",
@@ -386,7 +388,9 @@
       "eruption": "Potential volcanic eruption exposure according to the BPBD/BNPB KRB layer.",
       "extreme_weather": "Potential extreme weather exposure according to the BPBD/BNPB disaster risk layer.",
       "drought": "Potential drought exposure according to the BPBD/BNPB disaster risk layer.",
-      "liquefaction": "Potential liquefaction exposure according to the BPBD/BNPB disaster risk layer."
+      "liquefaction": "Potential liquefaction exposure according to the BPBD/BNPB disaster risk layer.",
+      "earthquake": "Potential earthquake exposure according to the BPBD/BNPB disaster risk layer.",
+      "flashflood": "Potential flash flood exposure according to the BPBD/BNPB disaster risk layer."
     }
   },
   "risk": {

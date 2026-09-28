@@ -29,12 +29,13 @@ import {
   BaseMapType,
   DisasterType,
   PropertyFacilityLayerType,
-  GisRiskLevel,
   DISASTER_LAYERS,
   PROPERTY_FACILITY_LAYERS,
   FacilityLayerConfig,
+  NumericRiskCode,
 } from "../data/riskData";
 import { fetchActiveLayers, LayerType, DisasterPolygon } from "../services/LayerService";
+import { fetchRiskAnalysis } from "../services/RiskService";
 import { fetchFacilities, ApiFacility } from "../services/FacilityService";
 import { FloatingMapControls } from "../components/maps/FloatingMapControls";
 import { LayerSelectionSheet } from "../components/maps/LayerSelectionSheet";
@@ -56,6 +57,8 @@ const QUICK_DISASTER_LAYERS: { id: DisasterType; emoji: string; color: string }[
     { id: "extreme_weather", emoji: "⚡" },
     { id: "drought", emoji: "🌵" },
     { id: "liquefaction", emoji: "🌍" },
+    { id: "earthquake", emoji: "📳" },
+    { id: "flashflood", emoji: "💦" },
   ] as { id: DisasterType; emoji: string }[]
 ).map((l) => ({ ...l, color: DISASTER_COLOR_MAP[l.id] }));
 
@@ -182,6 +185,22 @@ const FacilityClusterMarker = React.memo(function FacilityClusterMarker({
   );
 });
 
+/** Backend overallRisk (1/2/3) → filter level. The API only has three levels. */
+type RiskFilterLevel = "low" | "medium" | "high";
+const RISK_CODE_TO_LEVEL: Record<NumericRiskCode, RiskFilterLevel> = { 1: "low", 2: "medium", 3: "high" };
+const RISK_FETCH_CONCURRENCY = 6;
+
+/** Straight-line distance in km, used when the backend didn't send distanceKm */
+function haversineKm(a: { latitude: number; longitude: number }, b: { latitude: number; longitude: number }) {
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(b.latitude - a.latitude);
+  const dLng = toRad(b.longitude - a.longitude);
+  const h =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(a.latitude)) * Math.cos(toRad(b.latitude)) * Math.sin(dLng / 2) ** 2;
+  return 6371 * 2 * Math.asin(Math.sqrt(h));
+}
+
 function hexToRgba(hex: string, alpha: number): string {
   const parsed = hex.replace("#", "");
   const r = parseInt(parsed.substring(0, 2), 16);
@@ -224,8 +243,14 @@ export default function HomeGuestMap() {
   const [search, setSearch] = useState("");
   const [type, setType] = useState<"all" | "sale" | "rent">("all");
   const [sort, setSort] = useState<"distance" | "low" | "high">("distance");
-  const [selectedRiskFilter, setSelectedRiskFilter] = useState<"all" | GisRiskLevel>("all");
+  const [selectedRiskFilter, setSelectedRiskFilter] = useState<"all" | RiskFilterLevel>("all");
   const [isFilterVisible, setFilterVisible] = useState(false);
+
+  /* Overall risk per land (GET /api/lands/{id}/risk), fetched only once a risk filter is picked.
+     null = request failed. */
+  const [landRisks, setLandRisks] = useState<Record<string, RiskFilterLevel | null>>({});
+  const requestedRiskIds = useRef<Set<string>>(new Set());
+  const [isRiskLoading, setIsRiskLoading] = useState(false);
 
   /* GIS LAYERS STATE */
   const [baseMap, setBaseMap] = useState<BaseMapType>("standard");
@@ -473,7 +498,49 @@ export default function HomeGuestMap() {
     setActiveDisasterLayers([]);
   };
 
-  /* FILTER + SORT (operates on backend lands — no local Haversine) */
+  const landRisksRef = useRef(landRisks);
+  landRisksRef.current = landRisks;
+
+  /* Load overall risk for every land once a risk level filter is active (cached across toggles) */
+  useEffect(() => {
+    if (selectedRiskFilter === "all") return;
+    const pending = lands.filter((l) => !requestedRiskIds.current.has(l.id));
+    if (!pending.length) return;
+    pending.forEach((l) => requestedRiskIds.current.add(l.id));
+
+    let cancelled = false;
+    setIsRiskLoading(true);
+    (async () => {
+      let next = 0;
+      const worker = async () => {
+        while (next < pending.length) {
+          const land = pending[next++];
+          let level: RiskFilterLevel | null = null;
+          try {
+            const res = await fetchRiskAnalysis(land.id);
+            level = RISK_CODE_TO_LEVEL[res.overallRisk] ?? null;
+          } catch {
+            requestedRiskIds.current.delete(land.id); // allow a retry next time
+          }
+          if (!cancelled) setLandRisks((p) => ({ ...p, [land.id]: level }));
+        }
+      };
+      await Promise.all(
+        Array.from({ length: Math.min(RISK_FETCH_CONCURRENCY, pending.length) }, worker)
+      );
+      if (!cancelled) setIsRiskLoading(false);
+    })();
+    return () => {
+      cancelled = true;
+      // unfinished requests must be fetched again by the next run
+      pending.forEach((l) => {
+        if (!(l.id in landRisksRef.current)) requestedRiskIds.current.delete(l.id);
+      });
+      setIsRiskLoading(false);
+    };
+  }, [selectedRiskFilter, lands]);
+
+  /* FILTER + SORT (distance falls back to straight-line distance from the user when the backend has none) */
   const filtered = useMemo(() => {
     let data: Land[] = [...lands];
 
@@ -492,16 +559,26 @@ export default function HomeGuestMap() {
       );
     }
 
+    // Lands whose risk is still loading (or failed) are hidden while a level is selected
+    if (selectedRiskFilter !== "all") {
+      data = data.filter((l) => landRisks[l.id] === selectedRiskFilter);
+    }
+
+    // Infinity-safe ascending compare (Infinity - Infinity would be NaN)
+    const asc = (x: number, y: number) => (x === y ? 0 : x < y ? -1 : 1);
     if (sort === "distance") {
-      data.sort((a, b) => (a.distanceKm ?? 999) - (b.distanceKm ?? 999));
+      const dist = (l: Land) =>
+        l.distanceKm ?? (userLoc && l.center ? haversineKm(userLoc, l.center) : Infinity);
+      data.sort((a, b) => asc(dist(a), dist(b)));
     } else if (sort === "low") {
-      data.sort((a, b) => (a.price ?? 0) - (b.price ?? 0));
+      // properties without a price go last in both directions
+      data.sort((a, b) => asc(a.price || Infinity, b.price || Infinity));
     } else if (sort === "high") {
-      data.sort((a, b) => (b.price ?? 0) - (a.price ?? 0));
+      data.sort((a, b) => asc(b.price || -Infinity, a.price || -Infinity));
     }
 
     return data;
-  }, [lands, search, type, sort]);
+  }, [lands, search, type, sort, selectedRiskFilter, landRisks, userLoc]);
 
   /* Properties that can be shown on the map (preview carousel swipes through these) */
   const mappableProperties = useMemo(
@@ -892,8 +969,7 @@ export default function HomeGuestMap() {
                 { k: "all", l: t("maps.allLevels") },
                 { k: "low", l: `🟢 ${t("risk.low")}` },
                 { k: "medium", l: `🟡 ${t("risk.medium")}` },
-                { k: "high", l: `🟠 ${t("risk.high")}` },
-                { k: "very_high", l: `🔴 ${t("risk.veryHigh")}` },
+                { k: "high", l: `🔴 ${t("risk.high")}` },
               ].map((rf) => (
                 <TouchableOpacity
                   key={rf.k}
@@ -917,6 +993,12 @@ export default function HomeGuestMap() {
                 </TouchableOpacity>
               ))}
             </View>
+            {isRiskLoading && (
+              <View style={styles.riskLoadingRow}>
+                <ActivityIndicator size="small" color="#2E7D32" />
+                <Text style={styles.riskLoadingText}>{t("risk.analyzing")}</Text>
+              </View>
+            )}
 
             {/* SORT BY */}
             <Text style={[styles.sectionTitle, { marginTop: 14 }]}>{t("maps.sortBy")}</Text>
@@ -963,7 +1045,12 @@ export default function HomeGuestMap() {
             {/* APPLY BUTTON */}
             <TouchableOpacity
               style={styles.applyFilterBtn}
-              onPress={() => setFilterVisible(false)}
+              onPress={() => {
+                setFilterVisible(false);
+                // Open the preview on the top result so the sort order is visible (swipe for the next ones)
+                if (mappableProperties.length) focusProperty(mappableProperties[0].id);
+                else setActiveId(null);
+              }}
             >
               <Text style={styles.applyFilterBtnText}>{t("maps.applyFilter")}</Text>
             </TouchableOpacity>
@@ -1238,6 +1325,8 @@ const styles = StyleSheet.create({
     fontWeight: "800",
     color: "#2E7D32",
   },
+  riskLoadingRow: { flexDirection: "row", alignItems: "center", gap: 6, marginTop: 8 },
+  riskLoadingText: { fontSize: 12, color: "#6B7280" },
   applyFilterBtn: {
     backgroundColor: "#2E7D32",
     marginTop: 18,

@@ -35,7 +35,9 @@ export type DisasterType =
   | "eruption"
   | "liquefaction"
   | "drought"
-  | "extreme_weather";
+  | "extreme_weather"
+  | "earthquake"
+  | "flashflood";
 
 export type PropertyFacilityLayerType =
   | "properties"
@@ -123,6 +125,26 @@ export const DISASTER_LAYERS: DisasterLayerConfig[] = [
     description:
       "Potential liquefaction risk exposure according to BPBD/BNPB disaster risk layer.",
   },
+  {
+    id: "earthquake",
+    keyName: "earthquake",
+    name: "Earthquake",
+    emoji: "📳",
+    icon: "pulse-outline",
+    color: "#DB2777",
+    description:
+      "Potential earthquake exposure according to BPBD/BNPB disaster risk layer.",
+  },
+  {
+    id: "flashflood",
+    keyName: "flashflood",
+    name: "Flash Flood",
+    emoji: "🌊",
+    icon: "rainy-outline",
+    color: "#0891B2",
+    description:
+      "Potential flash flood exposure according to BPBD/BNPB disaster risk layer.",
+  },
 ];
 
 // ─── Facility Layer Config ───────────────────────────────────────────────────
@@ -184,6 +206,8 @@ export interface BackendRiskApiResponse {
     extreme_weather: NumericRiskCode;
     drought: NumericRiskCode;
     liquefaction: NumericRiskCode;
+    earthquake: NumericRiskCode;
+    flashflood: NumericRiskCode;
   };
   distribution: {
     low: number;

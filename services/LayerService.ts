@@ -56,7 +56,9 @@ export type LayerType =
   | "drought"
   | "eruption"
   | "liquefaction"
-  | "extreme_weather";
+  | "extreme_weather"
+  | "earthquake"
+  | "flashflood";
 
 /**
  * Fetch polygons for a single disaster layer within (optionally) a map viewport.

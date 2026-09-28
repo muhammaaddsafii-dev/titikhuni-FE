@@ -367,6 +367,8 @@
     "extreme_weather": "Cuaca Ekstrem",
     "drought": "Kekeringan",
     "liquefaction": "Likuefaksi",
+    "earthquake": "Gempa Bumi",
+    "flashflood": "Banjir Bandang",
     "properties": "Properti",
     "schools": "Sekolah",
     "hospitals": "Rumah Sakit",
@@ -386,7 +388,9 @@
       "eruption": "Potensi paparan erupsi gunung api menurut layer KRB BPBD/BNPB.",
       "extreme_weather": "Potensi paparan cuaca ekstrem menurut layer risiko bencana BPBD/BNPB.",
       "drought": "Potensi paparan kekeringan menurut layer risiko bencana BPBD/BNPB.",
-      "liquefaction": "Potensi paparan likuefaksi menurut layer risiko bencana BPBD/BNPB."
+      "liquefaction": "Potensi paparan likuefaksi menurut layer risiko bencana BPBD/BNPB.",
+      "earthquake": "Potensi paparan gempa bumi menurut layer risiko bencana BPBD/BNPB.",
+      "flashflood": "Potensi paparan banjir bandang menurut layer risiko bencana BPBD/BNPB."
     }
   },
   "risk": {
