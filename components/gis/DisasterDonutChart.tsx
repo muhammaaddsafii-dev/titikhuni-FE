@@ -1,6 +1,7 @@
 import { useTranslation } from "react-i18next";
 import React from "react";
 import { View, Text, StyleSheet } from "react-native";
+import { DISASTER_LAYERS } from "../../data/riskData";
 
 interface DisasterDonutChartProps {
   distribution: {
@@ -15,7 +16,7 @@ export const DisasterDonutChart: React.FC<DisasterDonutChartProps> = ({
 }) => {
   const { t } = useTranslation();
   const { low = 0, medium = 0, high = 0 } = distribution || {};
-  const totalLayers = 6;
+  const totalLayers = DISASTER_LAYERS.length;
 
   // Colors
   const lowColor = "#16A34A"; // Green
@@ -23,14 +24,14 @@ export const DisasterDonutChart: React.FC<DisasterDonutChartProps> = ({
   const highColor = "#DC2626"; // Red
 
   // Compute proportion segments for visual ring blocks
-  // Create 6 discrete segment blocks representing the 6 PostGIS layers
+  // Create one discrete segment block per disaster layer
   const segments: string[] = [];
   for (let i = 0; i < low; i++) segments.push(lowColor);
   for (let i = 0; i < medium; i++) segments.push(mediumColor);
   for (let i = 0; i < high; i++) segments.push(highColor);
 
-  // Pad to 6 if needed
-  while (segments.length < 6) segments.push("#E5E7EB");
+  // Pad to the total layer count if needed
+  while (segments.length < totalLayers) segments.push("#E5E7EB");
 
   return (
     <View style={styles.container}>
@@ -42,7 +43,7 @@ export const DisasterDonutChart: React.FC<DisasterDonutChartProps> = ({
           {/* SEGMENT BLOCKS IN CIRCULAR LAYOUT */}
           <View style={styles.segmentsContainer}>
             {segments.map((color, index) => {
-              const rotation = index * 60; // 360 / 6 = 60 deg
+              const rotation = index * (360 / totalLayers);
               return (
                 <View
                   key={index}
@@ -59,7 +60,7 @@ export const DisasterDonutChart: React.FC<DisasterDonutChartProps> = ({
 
           {/* INNER HOLE (CENTER OF DONUT) */}
           <View style={styles.donutInnerHole}>
-            <Text style={styles.centerNumber}>6</Text>
+            <Text style={styles.centerNumber}>{totalLayers}</Text>
             <Text style={styles.centerLabel}>{t("layers.disasterGroup")}</Text>
           </View>
         </View>

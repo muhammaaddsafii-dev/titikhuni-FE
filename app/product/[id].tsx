@@ -286,7 +286,7 @@ export default function ProductDetail() {
   const riskApiResponse: BackendRiskApiResponse = riskData ?? {
     overallRisk: 1 as NumericRiskCode,
     risk: { flood: 1, landslide: 1, eruption: 1, extreme_weather: 1, drought: 1, liquefaction: 1, earthquake: 1, flashflood: 1 },
-    distribution: { low: 6, medium: 0, high: 0 },
+    distribution: { low: 8, medium: 0, high: 0 },
   };
   const overallRiskInfo = NUMERIC_RISK_MAP[riskApiResponse.overallRisk] ?? NUMERIC_RISK_MAP[1];
 
